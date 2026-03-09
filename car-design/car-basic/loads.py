@@ -100,11 +100,14 @@ class Dynamics:
         print(f'> Corner Speed = {v_mps:.2f} m/s = {v_kph:.2f} km/h')
 
     def plot_gg_with_tires(self, v_kph):
-        # Limits in g's
-        accel_tractive = (self.W_r * self.mi) / (1 - (self.h_m * self.mi / self.L))
-        accel_engine = (self.power * 745.7) / max(v_kph / 3.6, 0.1)
-        accel_g = min(accel_tractive, accel_engine) / self.W
+        # traction-limited torque (eq. 1.6, Seward) peak tortque at rear wheels
+        T_wheels = (self.W_r * self.mi) / (1 - (self.h_m * self.mi / self.L))
+        # engine-limited accel [1 hp = 745.7 W; 1 kph = 3.6 mps] (eq. 1.8, Seward) 
+        F_engine = (self.power * 745.7) / max(v_kph / 3.6, 0.1)
+        # max possible accel [F = ma] (ex. 1.4, Seward)
+        accel_g = min(T_wheels, F_engine) / self.W
 
+        # from here on it is only a big plot, dont worry
         # Visual scale for tires
         r_f = self.mi * (self.W_f / self.W)
         r_r = self.mi * (self.W_r / self.W)
@@ -115,15 +118,15 @@ class Dynamics:
         cos_t = np.cos(t)
         sin_t = np.sin(t)
 
-        # 3x3 Layout Matrix (Central axis is native Polar/Radar)
-        fig = plot.figure(figsize=(7, 7))
+        # 3x3 Layout Matrix
+        fig = plot.figure(figsize=(8, 8))
         ax_fl = plot.subplot2grid((3, 3), (0, 0))
         ax_fr = plot.subplot2grid((3, 3), (0, 2))
         ax_c  = plot.subplot2grid((3, 3), (1, 1), projection='polar')
         ax_rl = plot.subplot2grid((3, 3), (2, 0))
         ax_rr = plot.subplot2grid((3, 3), (2, 2))
 
-        # 1. Central Car Diagram (Converting Cartesian to Polar)
+        # 1. Central Car Diagram
         x_center = self.mi * cos_t
         y_center = np.where(sin_t > 0, accel_g * sin_t, self.mi * sin_t)
         
@@ -143,26 +146,35 @@ class Dynamics:
 
         limite_folgado = self.mi * 1.2
         
-        # Format Tire Subplots (Completely isolated, no grid/axes)
-        for ax in [ax_fl, ax_fr, ax_rl, ax_rr]:
+        # Format Tire Subplots (Added discrete titles)
+        tires = [(ax_fl, 'FL'), (ax_fr, 'FR'), (ax_rl, 'RL'), (ax_rr, 'RR')]
+        for ax, label in tires:
             ax.set_xlim(-limite_folgado, limite_folgado)
             ax.set_ylim(-limite_folgado, limite_folgado)
             ax.set_aspect('equal')
             ax.axis('off')
+            ax.set_title(label, y=0, fontsize=10, fontweight='bold') # Added Title
 
         # Format Central Radar Diagram
         ax_c.set_rmax(limite_folgado)
-        
-        # Setup circular grid steps
         ax_c.set_rticks(np.arange(0.5, limite_folgado, 0.5))
-        
-        # Position the '0.5', '1.0' labels cleanly on the vertical axis
-        ax_c.set_rlabel_position(90)
-        
-        # Generate the internal cartesian crosshair
+        ax_c.set_rlabel_position(45) # Moved numbers to 45 deg to avoid overlapping axis labels
         ax_c.set_thetagrids([0, 90, 180, 270], labels=['', '', '', ''])
 
-        plot.tight_layout()
+        # General Title with Speed
+        fig.suptitle(f'Theoretical g-g Diagram | Velocity: {v_kph} km/h', fontsize=14, y=0.95)
+
+        # Axis Orientation Labels
+        offset = limite_folgado * 1.05
+        ax_c.text(np.pi/2, offset, 'Acceleration', ha='center', va='bottom', fontsize=7)
+        ax_c.text(3*np.pi/2, offset, 'Braking', ha='center', va='top', fontsize=7)
+        ax_c.text(np.pi, offset, 'Left', ha='right', va='center', fontsize=7)
+        ax_c.text(0, offset, 'Right', ha='left', va='center', fontsize=7)
+
+        # Max Traction Numerical Annotation (Only shows if power limited)
+        ax_c.text(np.pi/2, accel_g + 0.3, f'Max: {accel_g:.2f}g', ha='center', va='top', color='red', fontsize=8, fontweight='bold')
+
+        plot.subplots_adjust(top=0.88)
         plot.show()
 
 
@@ -171,5 +183,5 @@ car = Dynamics('CG.xlsx')
 car.static_loads()
 car.traction_limited_accel()
 car.power_limited_accel()
-car.cornering(100)
-car.plot_gg_with_tires(40)
+car.cornering(100) # corner radius
+car.plot_gg_with_tires(120) # velocity
