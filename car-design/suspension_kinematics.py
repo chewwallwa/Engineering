@@ -1,3 +1,4 @@
+"""Based on and validated with Vsusp.com"""
 import math
 
 class SuspensionKinematics2D:
